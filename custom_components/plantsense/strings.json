@@ -1,0 +1,29 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to PlantSense",
+        "description": "Enter the email and password for your PlantSense account.",
+        "data": {
+          "email": "Email",
+          "password": "Password"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate PlantSense",
+        "description": "Your PlantSense session for {email} expired. Enter your password to reconnect.",
+        "data": {
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid email or password.",
+      "cannot_connect": "Failed to connect to PlantSense. Please try again."
+    },
+    "abort": {
+      "already_configured": "This PlantSense account is already configured.",
+      "reauth_successful": "Re-authentication was successful."
+    }
+  }
+}
