@@ -72,12 +72,20 @@ Every sensor gets these entities:
 | Illuminance | illuminance | `lx` | Light level at the last reading. |
 | Battery | battery | `%` | |
 | WiFi Signal | signal strength | `dBm` | Diagnostic. |
+| Last reading | timestamp | | Diagnostic. When the sensor last reported. |
 
-All are `measurement` sensors, so Home Assistant keeps long-term statistics for
-them. Each value is the sensor's most recent reading from the last 7 days; if
-there is none, the entity is unavailable.
+The readings are `measurement` sensors, so Home Assistant keeps long-term
+statistics for them. Each shows the sensor's most recent reading.
 
-## Example automation
+**Offline sensors.** A sensor normally reports at least every 5 hours. If its newest
+reading is more than **6 hours** old (the same rule the PlantSense app uses to
+show a sensor as *Offline*), its readings become **unavailable**, so
+automations don't act on old values. **Last reading** stays available and
+keeps the time of the newest reading (from the sensor itself, not from when
+Home Assistant polled), so you can automate on it; it is `unknown` when the
+sensor hasn't reported in 7 days.
+
+## Example automations
 
 Get a phone notification when a plant needs water:
 
@@ -98,6 +106,23 @@ actions:
       message: >-
         Soil moisture is down to
         {{ states('sensor.fiddle_leaf_fig_moisture') | round(0) }}%.
+mode: single
+```
+
+And one when a sensor stops reporting (for example, its battery is empty):
+
+```yaml
+alias: Tomato Bed sensor is offline
+triggers:
+  - trigger: template
+    value_template: >-
+      {{ now() - (states('sensor.tomato_bed_last_reading') | as_datetime(now()))
+         > timedelta(hours=8) }}
+actions:
+  - action: notify.mobile_app_your_phone
+    data:
+      title: PlantSense sensor offline
+      message: The Tomato Bed sensor hasn't reported for 8 hours. Check its battery.
 mode: single
 ```
 
