@@ -132,3 +132,7 @@ entry; entries added without the variable always use
 
 Questions and bug reports:
 <https://github.com/mattshax/plantsense-ha-integration/issues>
+
+## License
+
+[MIT](LICENSE)
