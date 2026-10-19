@@ -25,3 +25,9 @@ UPDATE_INTERVAL = timedelta(minutes=20)
 
 # The six metrics exposed by /api/me under stats.time.<metric>.
 METRICS = ("moisture", "temp", "humidity", "lux", "battery", "wifisignal")
+
+# A sensor whose newest reading is older than this is offline: its reading
+# entities become unavailable (the "Last reading" entity stays available).
+# Same rule as the PlantSense app (plantsense-mobile stats.ts
+# OFFLINE_AFTER_HOURS = 6): the longest normal sleep is 5 h, plus an hour.
+OFFLINE_AFTER = timedelta(hours=6)

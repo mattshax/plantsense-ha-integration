@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from typing import Any
 
 import aiohttp
@@ -13,6 +14,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
 from .const import (
     BASE_URL,
@@ -48,6 +50,19 @@ def _last_value(series: Any) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _last_time(series: Any) -> datetime | None:
+    """Return the time (``x``) of the last point of a time series, or ``None``."""
+    if not isinstance(series, list) or not series:
+        return None
+    last = series[-1]
+    if not isinstance(last, dict) or not isinstance(last.get("x"), str):
+        return None
+    when = dt_util.parse_datetime(last["x"])
+    if when is not None and when.tzinfo is None:
+        when = when.replace(tzinfo=dt_util.UTC)  # the API sends UTC ("...Z")
+    return when
 
 
 class PlantSenseCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
@@ -134,7 +149,12 @@ class PlantSenseCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
 
     @staticmethod
     def _parse(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
-        """Convert an /api/me response into ``{device_id: {name, location, readings}}``."""
+        """Convert an /api/me response into ``{device_id: {name, location, readings, last_reading}}``.
+
+        ``last_reading`` is the newest point time across all metrics (the
+        sensor's own reading time, not the poll time), or ``None`` when there
+        is no reading in the 7-day window.
+        """
         result: dict[str, dict[str, Any]] = {}
         for device in payload.get("devices") or []:
             if not isinstance(device, dict):
@@ -146,9 +166,13 @@ class PlantSenseCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
             readings: dict[str, float | None] = {
                 metric: _last_value(time_series.get(metric)) for metric in METRICS
             }
+            times = [
+                t for t in (_last_time(time_series.get(m)) for m in METRICS) if t
+            ]
             result[device_id] = {
                 "name": device.get("name") or device_id,
                 "location": device.get("location"),
                 "readings": readings,
+                "last_reading": max(times) if times else None,
             }
         return result
