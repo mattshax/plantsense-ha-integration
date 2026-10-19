@@ -5,6 +5,7 @@ from __future__ import annotations
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceEntry
 
 from .const import DOMAIN
 from .coordinator import PlantSenseCoordinator
@@ -29,3 +30,14 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id)
     return unload_ok
+
+
+async def async_remove_config_entry_device(
+    hass: HomeAssistant, entry: ConfigEntry, device_entry: DeviceEntry
+) -> bool:
+    """Allow deleting a device from the UI once it is no longer on the account."""
+    coordinator: PlantSenseCoordinator = hass.data[DOMAIN][entry.entry_id]
+    return not any(
+        domain == DOMAIN and device_id in coordinator.data
+        for domain, device_id in device_entry.identifiers
+    )

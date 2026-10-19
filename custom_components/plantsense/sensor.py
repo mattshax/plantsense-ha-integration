@@ -18,7 +18,7 @@ from homeassistant.const import (
     EntityCategory,
     UnitOfTemperature,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -88,15 +88,29 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up PlantSense sensors for each device found by the coordinator."""
-    coordinator: PlantSenseCoordinator = hass.data[DOMAIN][entry.entry_id]
+    """Set up PlantSense sensors for each device found by the coordinator.
 
-    entities: list[PlantSenseSensor] = [
-        PlantSenseSensor(coordinator, device_id, description)
-        for device_id in coordinator.data
-        for description in SENSOR_DESCRIPTIONS
-    ]
-    async_add_entities(entities)
+    Devices added to the account later get their entities on the next poll,
+    without a reload.
+    """
+    coordinator: PlantSenseCoordinator = hass.data[DOMAIN][entry.entry_id]
+    known_devices: set[str] = set()
+
+    @callback
+    def _add_new_devices() -> None:
+        new_ids = [device_id for device_id in coordinator.data if device_id not in known_devices]
+        if not new_ids:
+            return
+        known_devices.update(new_ids)
+        entities: list[PlantSenseSensor] = [
+            PlantSenseSensor(coordinator, device_id, description)
+            for device_id in new_ids
+            for description in SENSOR_DESCRIPTIONS
+        ]
+        async_add_entities(entities)
+
+    _add_new_devices()
+    entry.async_on_unload(coordinator.async_add_listener(_add_new_devices))
 
 
 class PlantSenseSensor(CoordinatorEntity[PlantSenseCoordinator], SensorEntity):
