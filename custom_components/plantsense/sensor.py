@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -22,8 +23,9 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN
+from .const import DOMAIN, OFFLINE_AFTER
 from .coordinator import PlantSenseCoordinator
 
 # One description per metric returned by the coordinator. The ``key`` matches
@@ -82,6 +84,15 @@ SENSOR_DESCRIPTIONS: tuple[SensorEntityDescription, ...] = (
     ),
 )
 
+# When the sensor last reported. Enabled by default and available while the
+# account can be polled, so an offline sensor can be automated on.
+LAST_READING_DESCRIPTION = SensorEntityDescription(
+    key="last_reading",
+    name="Last reading",
+    device_class=SensorDeviceClass.TIMESTAMP,
+    entity_category=EntityCategory.DIAGNOSTIC,
+)
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -106,6 +117,10 @@ async def async_setup_entry(
             PlantSenseSensor(coordinator, device_id, description)
             for device_id in new_ids
             for description in SENSOR_DESCRIPTIONS
+        ]
+        entities += [
+            PlantSenseLastReadingSensor(coordinator, device_id, LAST_READING_DESCRIPTION)
+            for device_id in new_ids
         ]
         async_add_entities(entities)
 
@@ -140,9 +155,14 @@ class PlantSenseSensor(CoordinatorEntity[PlantSenseCoordinator], SensorEntity):
         )
 
     @property
+    def _device(self) -> dict[str, Any]:
+        """Return this device's parsed data (empty if it left the account)."""
+        return self.coordinator.data.get(self._device_id, {})
+
+    @property
     def _readings(self) -> dict[str, Any]:
         """Return the current reading map for this device (empty if gone)."""
-        return self.coordinator.data.get(self._device_id, {}).get("readings", {})
+        return self._device.get("readings", {})
 
     @property
     def native_value(self) -> float | None:
@@ -151,5 +171,26 @@ class PlantSenseSensor(CoordinatorEntity[PlantSenseCoordinator], SensorEntity):
 
     @property
     def available(self) -> bool:
-        """Available only when the last poll succeeded and we have a value."""
-        return self.coordinator.last_update_success and self.native_value is not None
+        """Available when the last poll succeeded, there is a value, and the
+        sensor's newest reading is no older than OFFLINE_AFTER."""
+        last_reading: datetime | None = self._device.get("last_reading")
+        return (
+            self.coordinator.last_update_success
+            and self.native_value is not None
+            and last_reading is not None
+            and dt_util.utcnow() - last_reading <= OFFLINE_AFTER
+        )
+
+
+class PlantSenseLastReadingSensor(PlantSenseSensor):
+    """When a PlantSense device last reported (its own reading time)."""
+
+    @property
+    def native_value(self) -> datetime | None:
+        """Return the newest reading time, or ``None`` if none in 7 days."""
+        return self._device.get("last_reading")
+
+    @property
+    def available(self) -> bool:
+        """Available while the account polls and the device is on it."""
+        return self.coordinator.last_update_success and bool(self._device)
