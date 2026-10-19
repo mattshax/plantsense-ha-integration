@@ -114,7 +114,7 @@ class PlantSenseSensor(CoordinatorEntity[PlantSenseCoordinator], SensorEntity):
             name=device.get("name") or device_id,
             manufacturer="PlantSense",
             model="PlantSense Sensor",
-            configuration_url="https://app.myplantsense.com",
+            configuration_url=coordinator.base_url,
         )
 
     @property

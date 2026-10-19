@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import Mapping
 from typing import Any
 
@@ -10,11 +11,11 @@ import aiohttp
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
-from homeassistant.const import CONF_EMAIL, CONF_PASSWORD
+from homeassistant.const import CONF_EMAIL, CONF_PASSWORD, CONF_URL
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .const import BASE_URL, DOMAIN, LOGIN_ENDPOINT
+from .const import BASE_URL, DOMAIN, ENV_API_URL, LOGIN_ENDPOINT
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,7 +37,9 @@ class CannotConnect(Exception):
     """Error to indicate we could not reach the PlantSense backend."""
 
 
-async def _validate_login(hass: HomeAssistant, email: str, password: str) -> None:
+async def _validate_login(
+    hass: HomeAssistant, base_url: str, email: str, password: str
+) -> None:
     """Validate credentials against /auth/login.
 
     Raises:
@@ -46,7 +49,7 @@ async def _validate_login(hass: HomeAssistant, email: str, password: str) -> Non
     session = async_get_clientsession(hass)
     try:
         async with session.post(
-            f"{BASE_URL}{LOGIN_ENDPOINT}",
+            f"{base_url}{LOGIN_ENDPOINT}",
             json={"email": email, "pass": password},
         ) as resp:
             if resp.status in (400, 401, 403):
@@ -69,25 +72,35 @@ class PlantSenseConfigFlow(ConfigFlow, domain=DOMAIN):
     def __init__(self) -> None:
         """Initialize the flow."""
         self._reauth_email: str | None = None
+        self._reauth_url: str = BASE_URL
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Handle the initial step where the user enters account credentials."""
+        base_url = os.environ.get(ENV_API_URL, BASE_URL).strip().rstrip("/")
+        if not base_url.startswith(("https://", "http://")):
+            return self.async_abort(reason="invalid_api_url")
+
         errors: dict[str, str] = {}
         if user_input is not None:
             email = user_input[CONF_EMAIL]
             password = user_input[CONF_PASSWORD]
 
-            await self.async_set_unique_id(email.lower())
+            # The same account on a development API is a separate entry.
+            unique_id = email.lower()
+            if base_url != BASE_URL:
+                _LOGGER.warning("Using PlantSense API override %s", base_url)
+                unique_id = f"{unique_id}@{base_url}"
+            await self.async_set_unique_id(unique_id)
             self._abort_if_unique_id_configured()
 
-            errors = await self._try_login(email, password)
+            errors = await self._try_login(base_url, email, password)
             if not errors:
-                return self.async_create_entry(
-                    title=email,
-                    data={CONF_EMAIL: email, CONF_PASSWORD: password},
-                )
+                data = {CONF_EMAIL: email, CONF_PASSWORD: password}
+                if base_url != BASE_URL:
+                    data[CONF_URL] = base_url
+                return self.async_create_entry(title=email, data=data)
 
         return self.async_show_form(
             step_id="user",
@@ -100,6 +113,7 @@ class PlantSenseConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         """Start re-authentication after the coordinator hit a hard auth failure."""
         self._reauth_email = entry_data[CONF_EMAIL]
+        self._reauth_url = entry_data.get(CONF_URL, BASE_URL)
         return await self.async_step_reauth_confirm()
 
     async def async_step_reauth_confirm(
@@ -110,14 +124,15 @@ class PlantSenseConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             password = user_input[CONF_PASSWORD]
 
-            errors = await self._try_login(self._reauth_email, password)
+            errors = await self._try_login(
+                self._reauth_url, self._reauth_email, password
+            )
             if not errors:
                 entry = self.hass.config_entries.async_get_entry(
                     self.context["entry_id"]
                 )
                 self.hass.config_entries.async_update_entry(
-                    entry,
-                    data={CONF_EMAIL: self._reauth_email, CONF_PASSWORD: password},
+                    entry, data={**entry.data, CONF_PASSWORD: password}
                 )
                 await self.hass.config_entries.async_reload(entry.entry_id)
                 return self.async_abort(reason="reauth_successful")
@@ -129,10 +144,12 @@ class PlantSenseConfigFlow(ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    async def _try_login(self, email: str, password: str) -> dict[str, str]:
+    async def _try_login(
+        self, base_url: str, email: str, password: str
+    ) -> dict[str, str]:
         """Validate credentials and map failures to config-flow error keys."""
         try:
-            await _validate_login(self.hass, email, password)
+            await _validate_login(self.hass, base_url, email, password)
         except InvalidAuth:
             return {"base": "invalid_auth"}
         except CannotConnect:

@@ -6,8 +6,14 @@ from datetime import timedelta
 
 DOMAIN = "plantsense"
 
-# PlantSense cloud API.
+# PlantSense cloud API. Every normal setup uses this.
 BASE_URL = "https://app.myplantsense.com"
+
+# Development override, never shown in the UI: when this environment variable
+# is set on the Home Assistant process while an entry is being set up, that
+# entry talks to the given PlantSense API (e.g. a local development server)
+# instead of BASE_URL. The URL is stored in the entry as CONF_URL.
+ENV_API_URL = "PLANTSENSE_API_URL"
 LOGIN_ENDPOINT = "/auth/login"
 DATA_ENDPOINT = "/api/me"
 
