@@ -8,7 +8,7 @@ from typing import Any
 import aiohttp
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_EMAIL, CONF_PASSWORD
+from homeassistant.const import CONF_EMAIL, CONF_PASSWORD, CONF_URL
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -61,6 +61,7 @@ class PlantSenseCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
             name=DOMAIN,
             update_interval=UPDATE_INTERVAL,
         )
+        self.base_url: str = entry.data.get(CONF_URL, BASE_URL)
         self._email: str = entry.data[CONF_EMAIL]
         self._password: str = entry.data[CONF_PASSWORD]
         self._session = async_get_clientsession(hass)
@@ -75,7 +76,7 @@ class PlantSenseCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
         """
         try:
             async with self._session.post(
-                f"{BASE_URL}{LOGIN_ENDPOINT}",
+                f"{self.base_url}{LOGIN_ENDPOINT}",
                 json={"email": self._email, "pass": self._password},
             ) as resp:
                 if resp.status in (400, 401, 403):
@@ -100,7 +101,7 @@ class PlantSenseCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
         """
         try:
             async with self._session.get(
-                f"{BASE_URL}{DATA_ENDPOINT}",
+                f"{self.base_url}{DATA_ENDPOINT}",
                 headers={"Authorization": f"Bearer {self._token}"},
             ) as resp:
                 if resp.status == 401:
