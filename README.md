@@ -138,9 +138,8 @@ mode: single
 
 The [PlantSense Card](https://github.com/mattshax/plantsense-ha-card) shows a
 sensor the way the PlantSense app does: a status pill and dials for moisture,
-light, temperature and humidity. Search HACS for **PlantSense Card**; if it
-isn't listed in your HACS yet, add `https://github.com/mattshax/plantsense-ha-card`
-as a custom repository of type **Dashboard**.
+light, temperature and humidity. Search HACS for **PlantSense Card** and click
+**Download**.
 
 ![PlantSense cards on a Home Assistant dashboard](https://raw.githubusercontent.com/mattshax/plantsense-ha-card/main/docs/card-light.png)
 
