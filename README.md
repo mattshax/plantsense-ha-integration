@@ -1,39 +1,34 @@
 # PlantSense for Home Assistant
 
-[![Open your Home Assistant instance and open this repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=mattshax&repository=plantsense-ha-integration&category=integration)
-[![Validate](https://github.com/mattshax/plantsense-ha-integration/actions/workflows/validate.yaml/badge.svg)](https://github.com/mattshax/plantsense-ha-integration/actions/workflows/validate.yaml)
+<img src="https://raw.githubusercontent.com/mattshax/plantsense-ha-integration/main/docs/plantsense-sensor.jpg" alt="The PlantSense sensor: a translucent green shell on two stainless soil probes" width="320">
 
-A [Home Assistant](https://www.home-assistant.io/) integration that brings your
-[PlantSense](https://myplantsense.com) soil sensors into Home Assistant: soil
-moisture, temperature, humidity, light and battery for every sensor on your
-PlantSense account, ready for dashboards and automations.
+[PlantSense](https://myplantsense.com) is a WiFi soil sensor for house plants
+and garden beds. It measures **soil moisture, temperature, humidity and light**,
+runs for weeks on a USB-C rechargeable battery, and needs no hub and no
+subscription.
+
+This integration brings every PlantSense sensor on your account into Home
+Assistant, ready for dashboards and automations. Each sensor becomes a device,
+named after the plant you gave it in the PlantSense app.
+
+Don't have a sensor yet? PlantSense is designed and hand-assembled in Chicago:
+[myplantsense.com/shop](https://myplantsense.com/shop).
 
 ![A PlantSense sensor's device page in Home Assistant](https://raw.githubusercontent.com/mattshax/plantsense-ha-integration/main/docs/device-page.png)
 
-## Why cloud polling?
-
-PlantSense is a battery-powered soil sensor. To last on a small battery it
-**deep-sleeps between readings, from 90 minutes up to 5 hours**, and is awake
-for only ~30 seconds at a time, so its local ESPHome API is unreachable most of
-the time. On each wake the sensor sends its reading to your PlantSense account.
-This integration reads them from there, so Home Assistant always has the latest
-values, whether the sensor is asleep or not, and whether or not it is on the
-same network as Home Assistant.
-
-This is a `cloud_polling` integration: it signs in with your PlantSense account
-and refreshes **every 20 minutes** (polling faster gains nothing, the sensors
-report far less often).
-
 ## Installation
+
+[![Open your Home Assistant instance and open this repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=mattshax&repository=plantsense-ha-integration&category=integration)
 
 ### HACS (recommended)
 
-1. Open **HACS** in Home Assistant, or use the **Open in HACS** button above.
+1. Open **HACS** in Home Assistant, or use the button above.
 2. Search for **PlantSense** and click **Download**.
-   - Not listed yet? In HACS, open the menu (top right) → **Custom
-     repositories**, add `https://github.com/mattshax/plantsense-ha-integration`
-     with type **Integration**, then search again.
 3. Restart Home Assistant.
+
+From Home Assistant 2026.11, HACS is built in as the **Marketplace**: go to
+**Settings → Marketplace**, search for **PlantSense** and select **Install**.
+If Home Assistant asks for a restart, restart it.
 
 ### Manual
 
@@ -55,10 +50,23 @@ If you sign in to PlantSense with Apple or Google, your account has no
 password yet: tap **Forgot your password?** on the PlantSense app's sign-in screen to set
 one, then use it here.
 
-Each PlantSense sensor appears as its own device, named after the plant you
-gave it in the app. Sensors you add to your account later show up on the next
-refresh, no restart needed. A sensor you remove from your account can then be
-deleted from its device page.
+Sensors you add to your account later show up on the next refresh, no restart
+needed. A sensor you remove from your account can then be deleted from its
+device page.
+
+## Why cloud polling?
+
+PlantSense is a battery-powered soil sensor. To last on a small battery it
+**deep-sleeps between readings, from 90 minutes up to 5 hours**, and is awake
+for only ~30 seconds at a time, so its local ESPHome API is unreachable most of
+the time. On each wake the sensor sends its reading to your PlantSense account.
+This integration reads them from there, so Home Assistant always has the latest
+values, whether the sensor is asleep or not, and whether or not it is on the
+same network as Home Assistant.
+
+This is a `cloud_polling` integration: it signs in with your PlantSense account
+and refreshes **every 20 minutes** (polling faster gains nothing, the sensors
+report far less often).
 
 ## Entities
 
@@ -130,7 +138,14 @@ mode: single
 
 The [PlantSense Card](https://github.com/mattshax/plantsense-ha-card) shows a
 sensor the way the PlantSense app does: a status pill and dials for moisture,
-light, temperature and humidity.
+light, temperature and humidity. Search HACS for **PlantSense Card**; if it
+isn't listed in your HACS yet, add `https://github.com/mattshax/plantsense-ha-card`
+as a custom repository of type **Dashboard**.
+
+![PlantSense cards on a Home Assistant dashboard](https://raw.githubusercontent.com/mattshax/plantsense-ha-card/main/docs/card-light.png)
+
+The full guide, with screenshots, is at
+[myplantsense.com/docs/home-assistant](https://myplantsense.com/docs/home-assistant).
 
 ## How sign-in works
 
@@ -146,6 +161,8 @@ light, temperature and humidity.
 
 ## Development
 
+[![Validate](https://github.com/mattshax/plantsense-ha-integration/actions/workflows/validate.yaml/badge.svg)](https://github.com/mattshax/plantsense-ha-integration/actions/workflows/validate.yaml)
+
 To run the integration against a PlantSense development server instead of the
 production API, set the `PLANTSENSE_API_URL` environment variable on the Home
 Assistant process (for example `-e PLANTSENSE_API_URL=http://192.168.1.10:9005`
@@ -160,4 +177,4 @@ Questions and bug reports:
 
 ## License
 
-[MIT](LICENSE)
+[MIT](https://github.com/mattshax/plantsense-ha-integration/blob/main/LICENSE)
