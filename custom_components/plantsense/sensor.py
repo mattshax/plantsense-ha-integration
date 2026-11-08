@@ -27,6 +27,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, OFFLINE_AFTER
 from .coordinator import PlantSenseCoordinator
+from .health import HEALTH_STATES, PlantHealth
 
 # One description per metric returned by the coordinator. The ``key`` matches
 # the reading key produced in coordinator._parse(). Display precision mirrors
@@ -88,9 +89,59 @@ SENSOR_DESCRIPTIONS: tuple[SensorEntityDescription, ...] = (
 # account can be polled, so an offline sensor can be automated on.
 LAST_READING_DESCRIPTION = SensorEntityDescription(
     key="last_reading",
+    translation_key="last_reading",
     name="Last reading",
     device_class=SensorDeviceClass.TIMESTAMP,
     entity_category=EntityCategory.DIAGNOSTIC,
+)
+
+# The plant as the PlantSense app sees it: Healthy, Fair, Warning or Needs attention, judged against the plant's own
+# care ranges (health.py). Its attributes carry the reasons, each dial's label and the care ranges.
+HEALTH_DESCRIPTION = SensorEntityDescription(
+    key="health",
+    translation_key="health",
+    name="Health",
+    device_class=SensorDeviceClass.ENUM,
+    options=list(HEALTH_STATES),
+    icon="mdi:sprout",
+)
+
+# Light is 0 at night, so the app shows the last 24 hours' peak; this is that value.
+DAILY_LIGHT_DESCRIPTION = SensorEntityDescription(
+    key="daily_light",
+    translation_key="daily_light",
+    name="Daily light",
+    device_class=SensorDeviceClass.ILLUMINANCE,
+    native_unit_of_measurement=LIGHT_LUX,
+    state_class=SensorStateClass.MEASUREMENT,
+    suggested_display_precision=0,
+)
+
+# When the plant was last watered: marked in the app, or detected from a rise in soil moisture.
+LAST_WATERED_DESCRIPTION = SensorEntityDescription(
+    key="last_watered",
+    translation_key="last_watered",
+    name="Last watered",
+    device_class=SensorDeviceClass.TIMESTAMP,
+    icon="mdi:watering-can",
+)
+
+# Care-range attributes on the Health entity: (attribute prefix, care key). Temperature is in °C.
+CARE_RANGE_ATTRIBUTES = (
+    ("moisture", "moisture"),
+    ("temperature", "temp"),
+    ("humidity", "humidity"),
+    ("light", "lux"),
+)
+
+# Dial-label attributes on the Health entity: (attribute, reading key). The labels are the app's, in English.
+STATUS_ATTRIBUTES = (
+    ("moisture_status", "moisture"),
+    ("temperature_status", "temp"),
+    ("humidity_status", "humidity"),
+    ("light_status", "lux"),
+    ("battery_status", "battery"),
+    ("wifi_status", "wifisignal"),
 )
 
 
@@ -118,10 +169,18 @@ async def async_setup_entry(
             for device_id in new_ids
             for description in SENSOR_DESCRIPTIONS
         ]
+        # Last reading stays the first timestamp entity on the device: the PlantSense card before 1.3.0 finds it
+        # as the device's first timestamp sensor.
         entities += [
             PlantSenseLastReadingSensor(coordinator, device_id, LAST_READING_DESCRIPTION)
             for device_id in new_ids
         ]
+        for device_id in new_ids:
+            entities += [
+                PlantSenseHealthSensor(coordinator, device_id, HEALTH_DESCRIPTION),
+                PlantSenseDailyLightSensor(coordinator, device_id, DAILY_LIGHT_DESCRIPTION),
+                PlantSenseLastWateredSensor(coordinator, device_id, LAST_WATERED_DESCRIPTION),
+            ]
         async_add_entities(entities)
 
     _add_new_devices()
@@ -194,3 +253,50 @@ class PlantSenseLastReadingSensor(PlantSenseSensor):
     def available(self) -> bool:
         """Available while the account polls and the device is on it."""
         return self.coordinator.last_update_success and bool(self._device)
+
+
+class PlantSenseHealthSensor(PlantSenseSensor):
+    """The plant's health, as the PlantSense app shows it."""
+
+    @property
+    def _health(self) -> PlantHealth | None:
+        return self._device.get("health")
+
+    @property
+    def native_value(self) -> str | None:
+        """Return healthy / fair / warning / needs_attention, or ``None`` before any reading."""
+        health = self._health
+        return health.health if health else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """The reasons behind the state, each dial's label and the plant's care ranges."""
+        health = self._health
+        if health is None:
+            return {}
+        attributes: dict[str, Any] = {"reasons": health.reasons}
+        for attribute, key in STATUS_ATTRIBUTES:
+            attributes[attribute] = health.statuses.get(key)
+        for prefix, key in CARE_RANGE_ATTRIBUTES:
+            if key in health.care_range:
+                attributes[f"{prefix}_min"], attributes[f"{prefix}_max"] = health.care_range[key]
+        return attributes
+
+
+class PlantSenseDailyLightSensor(PlantSenseSensor):
+    """The last 24 hours' peak light, as the app's Daily Light dial shows it."""
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the peak lux, or ``None`` while a new sensor waits for daylight."""
+        health: PlantHealth | None = self._device.get("health")
+        return health.daily_light if health else None
+
+
+class PlantSenseLastWateredSensor(PlantSenseLastReadingSensor):
+    """When the plant was last watered."""
+
+    @property
+    def native_value(self) -> datetime | None:
+        """Return the newest watering, marked or detected, or ``None`` if none."""
+        return self._device.get("last_watered")

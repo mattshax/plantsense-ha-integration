@@ -26,5 +26,32 @@
       "reauth_successful": "Re-authentication was successful.",
       "invalid_api_url": "The PLANTSENSE_API_URL override must start with https:// or http://."
     }
+  },
+  "entity": {
+    "sensor": {
+      "health": {
+        "name": "Health",
+        "state": {
+          "healthy": "Healthy",
+          "fair": "Fair",
+          "warning": "Warning",
+          "needs_attention": "Needs attention"
+        }
+      },
+      "daily_light": {
+        "name": "Daily light"
+      },
+      "last_watered": {
+        "name": "Last watered"
+      },
+      "last_reading": {
+        "name": "Last reading"
+      }
+    },
+    "binary_sensor": {
+      "needs_water": {
+        "name": "Needs water"
+      }
+    }
   }
 }

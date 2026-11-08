@@ -77,13 +77,39 @@ Every sensor gets these entities:
 | Moisture | moisture | `%` | Soil moisture. |
 | Temperature | temperature | `°C` (shown in your unit system) | Air temperature next to the plant. |
 | Humidity | humidity | `%` | Relative humidity of the air. |
-| Illuminance | illuminance | `lx` | Light level at the last reading. |
+| Illuminance | illuminance | `lx` | Light level at the last reading (0 at night). |
+| Daily light | illuminance | `lx` | The brightest light of the last 24 hours, as the app's Daily Light dial shows it. |
 | Battery | battery | `%` | |
 | WiFi Signal | signal strength | `dBm` | Diagnostic. |
+| Health | enum | | `healthy`, `fair`, `warning` or `needs_attention`: the plant's health as the app shows it. |
+| Needs water | binary sensor | | On when the app would say the plant needs water. |
+| Last watered | timestamp | | When the plant was last watered, marked in the app or detected from a rise in soil moisture. |
 | Last reading | timestamp | | Diagnostic. When the sensor last reported. |
 
 The readings are `measurement` sensors, so Home Assistant keeps long-term
 statistics for them. Each shows the sensor's most recent reading.
+
+**Health and Needs water** judge the readings against the plant's own care
+ranges (from the plant you picked in the app, editable in its Plant Settings),
+by the same rules as the app:
+
+- A reading below its range, or well above it, is **Needs attention**.
+- One in the bottom fifth of its range, or just above it, is **Warning**.
+- One between a fifth and about a third of the way up is **Fair**.
+- Soil moisture has more room above its range before it counts.
+
+A minimum of 0 means no minimum: light at the bottom of its range is fine.
+Soil moisture doesn't count against the plant for a few hours after a
+watering, and light waits for the first daytime reading on a new sensor.
+
+**Needs water** is on when soil moisture is below the plant's range and it
+hasn't just been watered. The Health entity's attributes carry:
+
+- `reasons`: for example `Soil moisture is low`.
+- Each dial's label: `moisture_status`, `light_status` and so on.
+- The care ranges: `moisture_min`, `moisture_max`, `temperature_min` and
+  `temperature_max` (in °C), `humidity_min`, `humidity_max`, `light_min`,
+  `light_max`.
 
 **Offline sensors.** A sensor normally reports at least every 5 hours. If its newest
 reading is more than **6 hours** old (the same rule the PlantSense app uses to
@@ -95,14 +121,14 @@ sensor hasn't reported in 7 days.
 
 ## Example automations
 
-Get a phone notification when a plant needs water:
+Get a phone notification when a plant needs water, using the plant's own range:
 
 ```yaml
 alias: Fiddle Leaf Fig needs water
 triggers:
-  - trigger: numeric_state
-    entity_id: sensor.fiddle_leaf_fig_moisture
-    below: 25
+  - trigger: state
+    entity_id: binary_sensor.fiddle_leaf_fig_needs_water
+    to: "on"
 conditions:
   - condition: time
     after: "08:00:00"
@@ -137,8 +163,8 @@ mode: single
 ## Dashboard card
 
 The [PlantSense Card](https://github.com/mattshax/plantsense-ha-card) shows a
-sensor the way the PlantSense app does: a status pill and dials for moisture,
-light, temperature and humidity. Search HACS for **PlantSense Card** and click
+sensor the way the PlantSense app does: the plant's health and why, and dials
+for moisture, daily light, temperature and humidity. Search HACS for **PlantSense Card** and click
 **Download**.
 
 ![PlantSense cards on a Home Assistant dashboard](https://raw.githubusercontent.com/mattshax/plantsense-ha-card/main/docs/card-light.png)

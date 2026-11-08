@@ -24,6 +24,7 @@ from .const import (
     METRICS,
     UPDATE_INTERVAL,
 )
+from .health import parse_time, plant_health
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -149,12 +150,16 @@ class PlantSenseCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
 
     @staticmethod
     def _parse(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
-        """Convert an /api/me response into ``{device_id: {name, location, readings, last_reading}}``.
+        """Convert an /api/me response into ``{device_id: {name, location, readings, last_reading, health,
+        last_watered}}``.
 
         ``last_reading`` is the newest point time across all metrics (the
         sensor's own reading time, not the poll time), or ``None`` when there
-        is no reading in the 7-day window.
+        is no reading in the 7-day window. ``health`` is the app's view of the
+        plant (health.plant_health), judged now in Home Assistant's time zone.
         """
+        now = dt_util.utcnow()
+        local = dt_util.now().tzinfo or dt_util.UTC
         result: dict[str, dict[str, Any]] = {}
         for device in payload.get("devices") or []:
             if not isinstance(device, dict):
@@ -162,17 +167,25 @@ class PlantSenseCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
             device_id = device.get("device")
             if not device_id:
                 continue
-            time_series = ((device.get("stats") or {}).get("time")) or {}
+            stats = device.get("stats") if isinstance(device.get("stats"), dict) else {}
+            time_series = stats.get("time") or {}
             readings: dict[str, float | None] = {
                 metric: _last_value(time_series.get(metric)) for metric in METRICS
             }
             times = [
                 t for t in (_last_time(time_series.get(m)) for m in METRICS) if t
             ]
+            # Watered: a hand-marked watering (stats._wateredAt) or the server's inferred one (lastWatered),
+            # whichever is newer (plantsense-dashboard readings.ts wateredAtMs).
+            watered = [
+                t for t in (parse_time(device.get("lastWatered")), parse_time(stats.get("_wateredAt"))) if t
+            ]
             result[device_id] = {
                 "name": device.get("name") or device_id,
                 "location": device.get("location"),
                 "readings": readings,
                 "last_reading": max(times) if times else None,
+                "health": plant_health(device, now, local),
+                "last_watered": max(watered) if watered else None,
             }
         return result
