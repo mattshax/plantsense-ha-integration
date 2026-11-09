@@ -13,6 +13,7 @@ from homeassistant.const import CONF_EMAIL, CONF_PASSWORD, CONF_URL
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.config_entry_oauth2_flow import OAuth2Session
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
@@ -69,8 +70,18 @@ def _last_time(series: Any) -> datetime | None:
 class PlantSenseCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
     """Poll the PlantSense cloud API and expose the latest reading per device."""
 
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
-        """Initialize the coordinator from a config entry."""
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        oauth_session: OAuth2Session | None = None,
+    ) -> None:
+        """Initialize the coordinator from a config entry.
+
+        An entry made with Sign in with PlantSense has an OAuth session (its
+        token renews by itself); an entry from before 1.4.0 has an email and
+        password, and logs in with them.
+        """
         super().__init__(
             hass,
             _LOGGER,
@@ -78,8 +89,9 @@ class PlantSenseCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
             update_interval=UPDATE_INTERVAL,
         )
         self.base_url: str = entry.data.get(CONF_URL, BASE_URL)
-        self._email: str = entry.data[CONF_EMAIL]
-        self._password: str = entry.data[CONF_PASSWORD]
+        self._oauth = oauth_session
+        self._email: str | None = entry.data.get(CONF_EMAIL)
+        self._password: str | None = entry.data.get(CONF_PASSWORD)
         self._session = async_get_clientsession(hass)
         self._token: str | None = None
 
@@ -118,6 +130,8 @@ class PlantSenseCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
         try:
             async with self._session.get(
                 f"{self.base_url}{DATA_ENDPOINT}",
+                # Plant photos are base64 in /api/me and nothing here uses them.
+                params={"images": "0"},
                 headers={"Authorization": f"Bearer {self._token}"},
             ) as resp:
                 if resp.status == 401:
@@ -129,7 +143,9 @@ class PlantSenseCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
             raise UpdateFailed(f"Error fetching PlantSense data: {err}") from err
 
     async def _async_update_data(self) -> dict[str, dict[str, Any]]:
-        """Log in if needed, fetch data, and re-login+retry once on 401."""
+        """Fetch /api/me, with the OAuth token or the stored password."""
+        if self._oauth is not None:
+            return self._parse(await self._fetch_me_oauth())
         if self._token is None:
             await self._login()
 
@@ -147,6 +163,31 @@ class PlantSenseCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
                 ) from err
 
         return self._parse(payload)
+
+    async def _fetch_me_oauth(self) -> dict[str, Any]:
+        """Fetch /api/me with a valid OAuth access token.
+
+        A refused refresh (HTTP 4xx from the token endpoint) or a 401 on a
+        token that hasn't expired (the connection was disconnected in
+        PlantSense) needs the person to sign in again.
+        """
+        try:
+            await self._oauth.async_ensure_token_valid()
+        except aiohttp.ClientResponseError as err:
+            if 400 <= err.status < 500:
+                raise ConfigEntryAuthFailed(
+                    "PlantSense refused to renew the sign-in"
+                ) from err
+            raise UpdateFailed(f"PlantSense sign-in renewal failed: {err}") from err
+        except aiohttp.ClientError as err:
+            raise UpdateFailed(f"Error connecting to PlantSense: {err}") from err
+        self._token = self._oauth.token["access_token"]
+        try:
+            return await self._fetch_me()
+        except _AuthExpired as err:
+            raise ConfigEntryAuthFailed(
+                "PlantSense no longer accepts this connection"
+            ) from err
 
     @staticmethod
     def _parse(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:

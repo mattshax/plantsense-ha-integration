@@ -43,12 +43,13 @@ If Home Assistant asks for a restart, restart it.
 
 1. Go to **Settings → Devices & services → Add integration** and search for
    **PlantSense** (or use the button above).
-2. Enter the **email** and **password** of your PlantSense account, the same
-   ones you use in the PlantSense app and at <https://app.myplantsense.com>.
+2. The PlantSense sign-in page opens. Sign in the way you do in the app:
+   Google, Apple or email.
+3. Check that the page names your Home Assistant, then choose **Connect**.
 
-If you sign in to PlantSense with Apple or Google, your account has no
-password yet: tap **Forgot your password?** on the PlantSense app's sign-in screen to set
-one, then use it here.
+Home Assistant gets read-only access to your account and never sees your
+password. To disconnect it, go to **Settings → Connected apps** at
+<https://app.myplantsense.com>.
 
 Sensors you add to your account later show up on the next refresh, no restart
 needed. A sensor you remove from your account can then be deleted from its
@@ -174,15 +175,23 @@ The full guide, with screenshots, is at
 
 ## How sign-in works
 
-- The integration signs in with `POST /auth/login` and reads your sensors with
-  `GET /api/me`, using the token it gets back.
-- Your email and password are saved in the config entry, like the credentials
-  of other cloud integrations (in Home Assistant's `.storage` folder), so the
-  integration can sign in again on its own.
-- If the token is rejected, it signs in again and retries once. If the
-  password itself is rejected (for example after you changed it), Home
-  Assistant asks you to enter the new one under **Settings → Devices &
-  services**.
+- **Sign in with PlantSense** is standard OAuth 2.0 (authorization code with
+  PKCE), through Home Assistant's own OAuth support. The redirect goes through
+  <https://my.home-assistant.io>, or straight back to your Home Assistant if
+  the My Home Assistant integration isn't loaded.
+- Home Assistant stores an access token, which lasts an hour, and a refresh
+  token, which it uses to get the next one by itself. The refresh token changes
+  every time it's used. Both are in the config entry, in Home Assistant's
+  `.storage` folder. No password is stored.
+- The tokens can only read: the integration fetches your sensors with
+  `GET /api/me` and nothing else.
+- If PlantSense stops accepting them (you disconnected Home Assistant, or
+  removed the account), Home Assistant asks you to sign in again under
+  **Settings → Devices & services**. Deleting the integration disconnects it
+  from your PlantSense account too.
+- Set up before 1.4.0 with an email and password? That entry keeps working.
+  The next time Home Assistant asks you to sign in again, it moves to Sign in
+  with PlantSense and the stored password is removed.
 
 ## Development
 
@@ -190,10 +199,12 @@ The full guide, with screenshots, is at
 
 To run the integration against a PlantSense development server instead of the
 production API, set the `PLANTSENSE_API_URL` environment variable on the Home
-Assistant process (for example `-e PLANTSENSE_API_URL=http://192.168.1.10:9005`
-with Docker) **before** adding the integration. The URL is saved with that
-entry; entries added without the variable always use
-`https://app.myplantsense.com`. It is not shown in the UI.
+Assistant process (for example `-e PLANTSENSE_API_URL=http://192.168.1.10:5173`
+with Docker) **before** adding the integration. That address has to serve the
+sign-in page (`/oauth/authorize`) as well as the API, as the web dashboard's
+development server does, and be reachable from both Home Assistant and your
+browser. The URL is saved with that entry; entries added without the variable
+always use `https://app.myplantsense.com`. It is not shown in the UI.
 
 ## Support
 

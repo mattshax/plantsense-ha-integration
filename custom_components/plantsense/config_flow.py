@@ -1,4 +1,10 @@
-"""Config flow for the PlantSense integration."""
+"""Config flow for the PlantSense integration: Sign in with PlantSense.
+
+Home Assistant opens the PlantSense sign-in page (oauth.py), where any sign-in
+method works, Google and Apple included. Entries made before 1.4.0 hold an
+email and password instead; they keep working, and a re-authentication moves
+them to Sign in with PlantSense.
+"""
 
 from __future__ import annotations
 
@@ -8,153 +14,119 @@ from collections.abc import Mapping
 from typing import Any
 
 import aiohttp
-import voluptuous as vol
 
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
-from homeassistant.const import CONF_EMAIL, CONF_PASSWORD, CONF_URL
-from homeassistant.core import HomeAssistant
+from homeassistant.config_entries import SOURCE_REAUTH, ConfigFlowResult
+from homeassistant.data_entry_flow import AbortFlow
+from homeassistant.const import CONF_URL
+from homeassistant.helpers import config_entry_oauth2_flow
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .const import BASE_URL, DOMAIN, ENV_API_URL, LOGIN_ENDPOINT
+from .const import BASE_URL, DATA_ENDPOINT, DOMAIN, ENV_API_URL
+from .oauth import async_register_implementation, async_revoke_token
 
 _LOGGER = logging.getLogger(__name__)
 
-STEP_USER_DATA_SCHEMA = vol.Schema(
-    {
-        vol.Required(CONF_EMAIL): str,
-        vol.Required(CONF_PASSWORD): str,
-    }
-)
 
-STEP_REAUTH_DATA_SCHEMA = vol.Schema({vol.Required(CONF_PASSWORD): str})
+class PlantSenseConfigFlow(
+    config_entry_oauth2_flow.AbstractOAuth2FlowHandler, domain=DOMAIN
+):
+    """Sign in with PlantSense, for new entries and re-authentication."""
 
-
-class InvalidAuth(Exception):
-    """Error to indicate the credentials were rejected."""
-
-
-class CannotConnect(Exception):
-    """Error to indicate we could not reach the PlantSense backend."""
-
-
-async def _validate_login(
-    hass: HomeAssistant, base_url: str, email: str, password: str
-) -> None:
-    """Validate credentials against /auth/login.
-
-    Raises:
-        InvalidAuth: the credentials were rejected.
-        CannotConnect: the backend was unreachable or returned a hard error.
-    """
-    session = async_get_clientsession(hass)
-    try:
-        async with session.post(
-            f"{base_url}{LOGIN_ENDPOINT}",
-            json={"email": email, "pass": password},
-        ) as resp:
-            if resp.status in (400, 401, 403):
-                raise InvalidAuth
-            if resp.status != 200:
-                raise CannotConnect
-            payload = await resp.json()
-    except aiohttp.ClientError as err:
-        raise CannotConnect from err
-
-    if payload.get("message") != "success" or not payload.get("token"):
-        raise InvalidAuth
-
-
-class PlantSenseConfigFlow(ConfigFlow, domain=DOMAIN):
-    """Handle the PlantSense config and re-auth flows."""
-
+    DOMAIN = DOMAIN
     VERSION = 1
 
     def __init__(self) -> None:
         """Initialize the flow."""
-        self._reauth_email: str | None = None
-        self._reauth_url: str = BASE_URL
+        super().__init__()
+        self._base_url = BASE_URL
+
+    @property
+    def logger(self) -> logging.Logger:
+        """Logger used by the OAuth2 flow helper."""
+        return _LOGGER
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Handle the initial step where the user enters account credentials."""
-        base_url = os.environ.get(ENV_API_URL, BASE_URL).strip().rstrip("/")
-        if not base_url.startswith(("https://", "http://")):
+        """Start Sign in with PlantSense against the cloud, or a dev server."""
+        if self.source != SOURCE_REAUTH:
+            self._base_url = (
+                os.environ.get(ENV_API_URL, BASE_URL).strip().rstrip("/")
+            )
+        if not self._base_url.startswith(("https://", "http://")):
             return self.async_abort(reason="invalid_api_url")
-
-        errors: dict[str, str] = {}
-        if user_input is not None:
-            email = user_input[CONF_EMAIL]
-            password = user_input[CONF_PASSWORD]
-
-            # The same account on a development API is a separate entry.
-            unique_id = email.lower()
-            if base_url != BASE_URL:
-                _LOGGER.warning("Using PlantSense API override %s", base_url)
-                unique_id = f"{unique_id}@{base_url}"
-            await self.async_set_unique_id(unique_id)
-            self._abort_if_unique_id_configured()
-
-            errors = await self._try_login(base_url, email, password)
-            if not errors:
-                data = {CONF_EMAIL: email, CONF_PASSWORD: password}
-                if base_url != BASE_URL:
-                    data[CONF_URL] = base_url
-                return self.async_create_entry(title=email, data=data)
-
-        return self.async_show_form(
-            step_id="user",
-            data_schema=STEP_USER_DATA_SCHEMA,
-            errors=errors,
-        )
+        if self._base_url != BASE_URL:
+            _LOGGER.warning("Using PlantSense API override %s", self._base_url)
+        async_register_implementation(self.hass, self._base_url)
+        return await super().async_step_user(user_input)
 
     async def async_step_reauth(
         self, entry_data: Mapping[str, Any]
     ) -> ConfigFlowResult:
-        """Start re-authentication after the coordinator hit a hard auth failure."""
-        self._reauth_email = entry_data[CONF_EMAIL]
-        self._reauth_url = entry_data.get(CONF_URL, BASE_URL)
+        """Re-authenticate after the token was refused (or an old password stopped working)."""
+        self._base_url = entry_data.get(CONF_URL, BASE_URL)
         return await self.async_step_reauth_confirm()
 
     async def async_step_reauth_confirm(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Ask for a fresh password and update the existing entry."""
-        errors: dict[str, str] = {}
-        if user_input is not None:
-            password = user_input[CONF_PASSWORD]
+        """Explain, then send the person to Sign in with PlantSense again."""
+        if user_input is None:
+            return self.async_show_form(step_id="reauth_confirm")
+        return await self.async_step_user()
 
-            errors = await self._try_login(
-                self._reauth_url, self._reauth_email, password
-            )
-            if not errors:
-                entry = self.hass.config_entries.async_get_entry(
-                    self.context["entry_id"]
+    async def async_oauth_create_entry(self, data: dict) -> ConfigFlowResult:
+        """Name the entry after the account, and keep one entry per account."""
+        refresh_token = data["token"]["refresh_token"]
+        email = await self._account_email(data["token"]["access_token"])
+        if email is None:
+            await async_revoke_token(self.hass, self._base_url, refresh_token)
+            return self.async_abort(reason="cannot_connect")
+
+        unique_id = email.lower()
+        if self._base_url != BASE_URL:
+            unique_id = f"{unique_id}@{self._base_url}"
+            data[CONF_URL] = self._base_url
+
+        if self.source == SOURCE_REAUTH:
+            entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+            if entry is None or entry.unique_id != unique_id:
+                await async_revoke_token(self.hass, self._base_url, refresh_token)
+                return self.async_abort(reason="wrong_account")
+            # The connection being replaced, if this entry already had one.
+            if "token" in entry.data:
+                await async_revoke_token(
+                    self.hass, self._base_url, entry.data["token"]["refresh_token"]
                 )
-                self.hass.config_entries.async_update_entry(
-                    entry, data={**entry.data, CONF_PASSWORD: password}
-                )
-                await self.hass.config_entries.async_reload(entry.entry_id)
-                return self.async_abort(reason="reauth_successful")
+            # Replaces an old email + password entry's data entirely.
+            self.hass.config_entries.async_update_entry(entry, data=data)
+            await self.hass.config_entries.async_reload(entry.entry_id)
+            return self.async_abort(reason="reauth_successful")
 
-        return self.async_show_form(
-            step_id="reauth_confirm",
-            data_schema=STEP_REAUTH_DATA_SCHEMA,
-            description_placeholders={CONF_EMAIL: self._reauth_email or ""},
-            errors=errors,
-        )
-
-    async def _try_login(
-        self, base_url: str, email: str, password: str
-    ) -> dict[str, str]:
-        """Validate credentials and map failures to config-flow error keys."""
+        await self.async_set_unique_id(unique_id)
         try:
-            await _validate_login(self.hass, base_url, email, password)
-        except InvalidAuth:
-            return {"base": "invalid_auth"}
-        except CannotConnect:
-            return {"base": "cannot_connect"}
-        except Exception:  # noqa: BLE001 - surface anything unexpected as a soft error
-            _LOGGER.exception("Unexpected error validating PlantSense login")
-            return {"base": "cannot_connect"}
-        return {}
+            self._abort_if_unique_id_configured()
+        except AbortFlow:
+            await async_revoke_token(self.hass, self._base_url, refresh_token)
+            raise
+        return self.async_create_entry(title=email, data=data)
+
+    async def _account_email(self, access_token: str) -> str | None:
+        """The signed-in account's email, from /api/me."""
+        session = async_get_clientsession(self.hass)
+        try:
+            async with session.get(
+                f"{self._base_url}{DATA_ENDPOINT}",
+                params={"images": "0"},
+                headers={"Authorization": f"Bearer {access_token}"},
+            ) as resp:
+                if resp.status != 200:
+                    _LOGGER.error("PlantSense /api/me returned HTTP %s", resp.status)
+                    return None
+                payload = await resp.json()
+        except aiohttp.ClientError as err:
+            _LOGGER.error("Error reaching PlantSense: %s", err)
+            return None
+        user = payload.get("user") if isinstance(payload, dict) else None
+        email = user.get("email") if isinstance(user, dict) else None
+        return email if isinstance(email, str) and email else None

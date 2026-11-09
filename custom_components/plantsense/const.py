@@ -17,6 +17,14 @@ ENV_API_URL = "PLANTSENSE_API_URL"
 LOGIN_ENDPOINT = "/auth/login"
 DATA_ENDPOINT = "/api/me"
 
+# Sign in with PlantSense (OAuth 2.0 + PKCE, oauth.py). The authorize page is
+# the PlantSense web dashboard (same host as the API); the token endpoint is the
+# API. The client is public: Home Assistant can't keep a client secret.
+OAUTH_CLIENT_ID = "home-assistant"
+AUTHORIZE_PATH = "/oauth/authorize"
+TOKEN_PATH = "/auth/oauth/token"
+REVOKE_PATH = "/auth/oauth/revoke"
+
 # The sensor is a battery device that deep-sleeps for ~90 minutes and is only
 # awake for ~30 seconds each cycle. It POSTs a reading to the cloud on each
 # wake, so polling the cloud more often than the wake cycle just wastes API

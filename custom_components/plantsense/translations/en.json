@@ -1,30 +1,35 @@
 {
   "config": {
     "step": {
-      "user": {
-        "title": "Connect to PlantSense",
-        "description": "Enter the email and password for your PlantSense account.",
-        "data": {
-          "email": "Email",
-          "password": "Password"
-        }
+      "pick_implementation": {
+        "title": "Sign in with PlantSense"
+      },
+      "auth": {
+        "title": "Sign in with PlantSense"
       },
       "reauth_confirm": {
-        "title": "Re-authenticate PlantSense",
-        "description": "Your PlantSense session for {email} expired. Enter your password to reconnect.",
-        "data": {
-          "password": "Password"
-        }
+        "title": "Sign in to PlantSense again",
+        "description": "PlantSense needs you to sign in again. You'll go to the PlantSense sign-in page, where you can use Google, Apple or your email, the same way you sign in to the app."
       }
     },
-    "error": {
-      "invalid_auth": "Invalid email or password.",
-      "cannot_connect": "Failed to connect to PlantSense. Please try again."
-    },
     "abort": {
-      "already_configured": "This PlantSense account is already configured.",
-      "reauth_successful": "Re-authentication was successful.",
-      "invalid_api_url": "The PLANTSENSE_API_URL override must start with https:// or http://."
+      "already_configured": "This PlantSense account is already set up.",
+      "reauth_successful": "Signed in again. PlantSense is reconnected.",
+      "wrong_account": "That's a different PlantSense account. Sign in with the account this entry was set up with.",
+      "cannot_connect": "Couldn't reach PlantSense. Try again in a moment.",
+      "invalid_api_url": "The PLANTSENSE_API_URL override must start with https:// or http://.",
+      "user_rejected_authorize": "The connection was cancelled on the PlantSense page.",
+      "authorize_url_timeout": "Timed out preparing the PlantSense sign-in. Try again.",
+      "no_url_available": "Home Assistant has no URL configured, so PlantSense can't send you back to it. See {docs_url}.",
+      "missing_configuration": "The PlantSense sign-in isn't available. Restart Home Assistant and try again.",
+      "oauth_implementation_unavailable": "The PlantSense sign-in isn't available. Restart Home Assistant and try again.",
+      "oauth_error": "PlantSense sent back an invalid sign-in. Try again.",
+      "oauth_failed": "Couldn't finish signing in to PlantSense. Try again.",
+      "oauth_timeout": "PlantSense took too long to finish signing in. Try again.",
+      "oauth_unauthorized": "PlantSense refused the sign-in. Try again."
+    },
+    "progress": {
+      "auth": "Finish signing in on the PlantSense page that opened."
     }
   },
   "entity": {
