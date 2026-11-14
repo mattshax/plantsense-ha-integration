@@ -1,6 +1,6 @@
 # PlantSense for Home Assistant
 
-<img src="https://raw.githubusercontent.com/mattshax/plantsense-ha-integration/main/docs/plantsense-sensor.jpg" alt="The PlantSense sensor: a translucent green shell on two stainless soil probes" width="320">
+<img src="https://raw.githubusercontent.com/scietas/plantsense-ha-integration/main/docs/plantsense-sensor.jpg" alt="The PlantSense sensor: a translucent green shell on two stainless soil probes" width="320">
 
 [PlantSense](https://myplantsense.com) is a WiFi soil sensor for house plants
 and garden beds. It measures **soil moisture, temperature, humidity and light**,
@@ -14,11 +14,11 @@ named after the plant you gave it in the PlantSense app.
 Don't have a sensor yet? PlantSense is designed and hand-assembled in Chicago:
 [myplantsense.com/shop](https://myplantsense.com/shop).
 
-<img src="https://raw.githubusercontent.com/mattshax/plantsense-ha-integration/main/docs/device-page.png" alt="A PlantSense sensor's device page in Home Assistant" width="720">
+<img src="https://raw.githubusercontent.com/scietas/plantsense-ha-integration/main/docs/device-page.png" alt="A PlantSense sensor's device page in Home Assistant" width="720">
 
 ## Installation
 
-[![Open your Home Assistant instance and open this repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=mattshax&repository=plantsense-ha-integration&category=integration)
+[![Open your Home Assistant instance and open this repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=scietas&repository=plantsense-ha-integration&category=integration)
 
 ### HACS (recommended)
 
@@ -163,12 +163,12 @@ mode: single
 
 ## Dashboard card
 
-The [PlantSense Card](https://github.com/mattshax/plantsense-ha-card) shows a
+The [PlantSense Card](https://github.com/scietas/plantsense-ha-card) shows a
 sensor the way the PlantSense app does: the plant's health and why, and dials
 for moisture, daily light, temperature and humidity. Search HACS for **PlantSense Card** and click
 **Download**.
 
-<img src="https://raw.githubusercontent.com/mattshax/plantsense-ha-card/main/docs/card-dark.png" alt="PlantSense cards on a Home Assistant dashboard" width="720">
+<img src="https://raw.githubusercontent.com/scietas/plantsense-ha-card/main/docs/card-dark.png" alt="PlantSense cards on a Home Assistant dashboard" width="720">
 
 The full guide, with screenshots, is at
 [myplantsense.com/docs/home-assistant](https://myplantsense.com/docs/home-assistant).
@@ -195,7 +195,7 @@ The full guide, with screenshots, is at
 
 ## Development
 
-[![Validate](https://github.com/mattshax/plantsense-ha-integration/actions/workflows/validate.yaml/badge.svg)](https://github.com/mattshax/plantsense-ha-integration/actions/workflows/validate.yaml)
+[![Validate](https://github.com/scietas/plantsense-ha-integration/actions/workflows/validate.yaml/badge.svg)](https://github.com/scietas/plantsense-ha-integration/actions/workflows/validate.yaml)
 
 To run the integration against a PlantSense development server instead of the
 production API, set the `PLANTSENSE_API_URL` environment variable on the Home
@@ -209,8 +209,10 @@ always use `https://app.myplantsense.com`. It is not shown in the UI.
 ## Support
 
 Questions and bug reports:
-<https://github.com/mattshax/plantsense-ha-integration/issues>
+<https://github.com/scietas/plantsense-ha-integration/issues>
 
 ## License
 
-[MIT](https://github.com/mattshax/plantsense-ha-integration/blob/main/LICENSE)
+[MIT](https://github.com/scietas/plantsense-ha-integration/blob/main/LICENSE)
+
+PlantSense is made by [Scietas](https://scietas.com).
