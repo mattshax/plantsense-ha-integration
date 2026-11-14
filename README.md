@@ -14,7 +14,7 @@ named after the plant you gave it in the PlantSense app.
 Don't have a sensor yet? PlantSense is designed and hand-assembled in Chicago:
 [myplantsense.com/shop](https://myplantsense.com/shop).
 
-![A PlantSense sensor's device page in Home Assistant](https://raw.githubusercontent.com/mattshax/plantsense-ha-integration/main/docs/device-page.png)
+<img src="https://raw.githubusercontent.com/mattshax/plantsense-ha-integration/main/docs/device-page.png" alt="A PlantSense sensor's device page in Home Assistant" width="720">
 
 ## Installation
 
@@ -168,7 +168,7 @@ sensor the way the PlantSense app does: the plant's health and why, and dials
 for moisture, daily light, temperature and humidity. Search HACS for **PlantSense Card** and click
 **Download**.
 
-![PlantSense cards on a Home Assistant dashboard](https://raw.githubusercontent.com/mattshax/plantsense-ha-card/main/docs/card-light.png)
+<img src="https://raw.githubusercontent.com/mattshax/plantsense-ha-card/main/docs/card-dark.png" alt="PlantSense cards on a Home Assistant dashboard" width="720">
 
 The full guide, with screenshots, is at
 [myplantsense.com/docs/home-assistant](https://myplantsense.com/docs/home-assistant).
